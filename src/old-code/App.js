@@ -1,9 +1,21 @@
 import './App.css';
 import { useState, useEffect } from 'react';
 import Modal from './components/modal/modal';
-import MatrixHelper from './features/matrix/matrix-helper';
+import MatrixBuilder from './features/matrix/matrix-builder';
 import { FiBarChart2 } from 'react-icons/fi';
 import { Keyboard } from './keyboard';
+
+const matrixBuilder = (rows, cols) => {
+  console.log('matrixBuilder runs');
+  let cellDefinition = { letter: '', status: '' };
+  // PROBLEM WITH THE FILL METHOD : If the first parameter is an object, each slot in the array will reference that object.
+  // let matrix = [...new Array(rows)].map(row => new Array(cols).fill({...cellDefinition}));
+  // TODO improve the complexity 
+  return [...new Array(rows)].map(row => [...new Array(cols)].map(col => ({...cellDefinition})));
+}
+
+// TODO run this only once
+// const matrixInitialState = matrixBuilder(5, 5);
 
 function App() {
 
@@ -24,9 +36,25 @@ function App() {
     btnTxt: 'Aceptar'
   }
 
+  // const matrixBuilder = (rows, cols) => {
+  //   console.log('matrixBuilder runs');
+  //   let cellDefinition = { letter: '', status: '' };
+  //   // PROBLEM WITH THE FILL METHOD : If the first parameter is an object, each slot in the array will reference that object.
+  //   // let matrix = [...new Array(rows)].map(row => new Array(cols).fill({...cellDefinition}));
+  //   // TODO improve the complexity 
+  //   return [...new Array(rows)].map(row => [...new Array(cols)].map(col => ({...cellDefinition})));
+  // }
+
+  // TODO run this only once
+  // let matrixInitialState = matrixBuilder(5, 5);
+
   useEffect(() => {
-    const matrixInitialState = new MatrixHelper(5, 5);
-    setMatrix(matrixInitialState.getMatrix());
+    // const matrixInitialState = matrixBuilder(5, 5);
+    // setMatrix(matrixInitialState);
+
+    const matrixInitialState2 = new MatrixBuilder(5, 5);
+    setMatrix(matrixInitialState2.getMatrix());
+
   }, []);
 
   
@@ -85,6 +113,8 @@ function App() {
   ];
 
   const [matrix, setMatrix] = useState([]);
+
+  const [tryouts, setTryouts] = useState(1);
   const [matrixIndex, setMatrixIndex] = useState(0);
 
   const [showGuideModal, setShowGuideModal] = useState(false);
@@ -125,7 +155,7 @@ function App() {
       console.log("expired");
       setRunTimer(false);
       setCountDown(0);
-      clearMatrix();
+      clear();
     }
   }, [countDown, runTimer]);
 
@@ -135,30 +165,39 @@ function App() {
   // ********** END - TIMER LOGIC ********** //
 
 
-  const matrixController = (input) => {
-    console.log('matrixIndex', matrixIndex);
-    let currentMatrixState = [...matrix];
-    MatrixHelper.updateRow(input, currentMatrixState[matrixIndex]);
-    setMatrix([...currentMatrixState]);
-  }
-
-  const onKeyEnter = (keySelected) => {
+  const keyboardHandler = (keySelected) => {
     matrixController(keySelected);
   }
 
-  const onDeleteKey = () => {
-    const currentMatrixState = [...matrix];
-    const currentRow = currentMatrixState[matrixIndex]; 
-    MatrixHelper.deleteLatest(currentRow);
-    setMatrix([...currentMatrixState]);
+  const matrixController = (input) => {
+
+    let currentMatrixState = [...matrix];
+    const limit = currentMatrixState.length;
+
+    if(tryouts <= limit) {
+
+      // updateRow(input, currentMatrixState[matrixIndex]);    
+      MatrixBuilder.updateRow(input, currentMatrixState[matrixIndex]);
+      setMatrix([...currentMatrixState]);
+
+      // AUTOMATIC WORD CHECKING
+      // if(matrix[matrixIndex].at(-1).letter !== '') {
+      //   checkWord(hiddenWord, matrix[matrixIndex]); 
+      // }
+
+    } else {
+      setShowStatsModal(true);
+      clear();
+    }
+
   }
 
-  const checkWord = (string, row) => {
-    let word = row.map(item => item.letter).join('');
+  const checkWord = (string, array) => {
+    let word = array.map(item => item.letter).join('');
     if(word !== string) {
 
       // CHECK EACH LETTER
-      row.forEach((item, index) => {
+      array.forEach((item, index) => {
         if (item.letter !== string[index]) {
           item.status = string.includes(item.letter) ? 'bg-amber-400' : 'bg-neutral-300';
         } else {
@@ -168,23 +207,50 @@ function App() {
 
       // *** NEXT ROW *** //
       setMatrixIndex(matrixIndex => matrixIndex + 1);
+      setTryouts(tryouts => tryouts + 1);
 
     } else {
       let currentStats = {...stats};
       currentStats.wins += 1;
       setStats(currentStats);
       setShowStatsModal(true);
-      clearMatrix();
+      clear();
       console.log('estadisticas finales', currentStats);
     }
-    console.log('THE FINAL OBJ => ', row);
+    console.log('THE FINAL OBJ => ', array);
   }
 
-  const clearMatrix = () => {
-    const matrixInitialState = new MatrixHelper(5, 5);
-    setMatrix(matrixInitialState.getMatrix());
-    setMatrixIndex(matrixIndex => 0);
+
+  // ********** METHODS THAT SHOULD BE MATRIX'S ********** //
+
+  // const updateRow = (letter, row) => {
+  //   const cellAvailable = row.findIndex(cell => cell.letter === '');
+  //   if(cellAvailable !== -1) {
+  //     row[cellAvailable].letter = letter;
+  //   } else {
+  //     console.log('No cells available');
+  //   }   
+  // }
+
+  const deleteHandler = () => {
+    const currentMatrixState = [...matrix];
+    const currentRow = currentMatrixState[matrixIndex];
+    const cellAvailable = currentRow.findIndex(cell => cell.letter === '');
+
+    if(cellAvailable > 0) {
+      currentRow[cellAvailable - 1].letter = '';
+      setMatrix([...currentMatrixState]);
+    }
   }
+
+  const clear = () => {
+    const matrixInitialState = matrixBuilder(5, 5);
+    setMatrix(matrixInitialState);
+    setMatrixIndex(matrixIndex => 0);
+    setTryouts(tryouts => 1);
+  }
+
+  // ---------------------------------------------------------
 
   const play = () => {
     let currentStats = {...stats};
@@ -195,19 +261,20 @@ function App() {
     // togglerTimer();
   }
 
-  const onSubmitWord = () => {
+  const enterHandler = () => {
     console.log('Enter');
 
     if(matrix[matrixIndex].at(-1).letter !== '') {
       checkWord(hiddenWord, matrix[matrixIndex]); 
-    } 
-   
-    if(matrix.at(-1).at(-1).letter !== '') {
-      console.log('// ***** Llegué al final ***** //');
-      setShowStatsModal(true);
-      clearMatrix();
     }
+   
+    // if(matrix.at(-1).letter !== '') {
+
+    // }
+ 
   }
+
+
 
   return (
     <div className="container mx-auto py-9 flex justify-center">
@@ -247,7 +314,7 @@ function App() {
         </div>
 
         {/*  *** KEYBOARD *** */}
-        <Keyboard keys={keyboard} keyHandler={onKeyEnter} deleteHandler={onDeleteKey} submitWordHandler={onSubmitWord} />
+        <Keyboard keys={keyboard} keyHandler={keyboardHandler} deleteHandler={deleteHandler} enterHandler={enterHandler} />
 
         {/*  *** MODALS *** */}
         <Modal showToggler={showGuideModal} event={play} details={guideModalDetails}>
